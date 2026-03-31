@@ -27,6 +27,7 @@ interface WorkspaceDefinition {
   title: string;
   cwd: string;
   color?: string;
+  env?: Record<string, string>;
   layout?: LayoutNode;
 }
 
@@ -165,6 +166,12 @@ function createWorktree(
   const result: WorkspaceDefinition = {
     title,
     cwd: worktreePath,
+    env: {
+      CMUX_PROJECT: project.id,
+      CMUX_WORKFLOW: workflow?.name ?? "default",
+      CMUX_SESSION: session,
+      CMUX_BRANCH: branch,
+    },
   };
 
   if (project.color) {
