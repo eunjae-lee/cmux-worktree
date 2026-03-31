@@ -167,10 +167,10 @@ function createWorktree(
     title,
     cwd: worktreePath,
     env: {
-      CMUX_PROJECT: project.id,
-      CMUX_WORKFLOW: workflow?.name ?? "default",
-      CMUX_SESSION: session,
-      CMUX_BRANCH: branch,
+      CMUX_PROVIDER_PROJECT: project.id,
+      CMUX_PROVIDER_WORKFLOW: workflow?.name ?? "default",
+      CMUX_PROVIDER_SESSION: session,
+      CMUX_PROVIDER_BRANCH: branch,
     },
   };
 
