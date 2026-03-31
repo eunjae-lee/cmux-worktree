@@ -5,6 +5,7 @@ interface ProviderInput {
   label: string;
   placeholder: string;
   required: boolean;
+  deriveFrom?: string;
 }
 
 interface ProviderItem {
@@ -27,10 +28,17 @@ export function list() {
     if (project.worktree) {
       item.inputs = [
         {
+          id: "session",
+          label: "Session Name",
+          placeholder: "e.g. fix login bug",
+          required: true,
+        },
+        {
           id: "branch",
           label: "Branch Name",
-          placeholder: "e.g. feature-x",
-          required: true,
+          placeholder: "auto-generated from session name",
+          required: false,
+          deriveFrom: "session",
         },
       ];
     }

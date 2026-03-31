@@ -50,7 +50,8 @@ function progress(msg: string) {
 
 function createWorktree(
   project: ProjectDefinition,
-  branch: string
+  branch: string,
+  session: string
 ): WorkspaceDefinition {
   const repoPath = project.path;
   const worktreePath = resolve(repoPath, ".worktrees", branch);
@@ -100,7 +101,7 @@ function createWorktree(
     }
   }
 
-  const title = `${project.name} · ${branch}`;
+  const title = `${project.name} · ${session}`;
   const result: WorkspaceDefinition = {
     title,
     cwd: worktreePath,
@@ -142,6 +143,14 @@ function createSimple(project: ProjectDefinition): WorkspaceDefinition {
   return result;
 }
 
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 function shellEscape(s: string): string {
   return "'" + s.replace(/'/g, "'\\''") + "'";
 }
@@ -158,11 +167,12 @@ export function create(
   }
 
   if (project.worktree) {
-    const branch = inputs.branch;
-    if (!branch) {
-      throw new Error("Branch name is required for worktree projects");
+    const session = inputs.session;
+    if (!session) {
+      throw new Error("Session name is required for worktree projects");
     }
-    return createWorktree(project, branch);
+    const branch = inputs.branch?.trim() || slugify(session);
+    return createWorktree(project, branch, session);
   }
 
   return createSimple(project);
