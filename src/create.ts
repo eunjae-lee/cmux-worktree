@@ -6,7 +6,7 @@ import {
   type WorkflowDefinition,
 } from "./config";
 import { execSync } from "child_process";
-import { existsSync } from "fs";
+import { existsSync, writeFileSync } from "fs";
 import { resolve } from "path";
 import { homedir } from "os";
 
@@ -67,16 +67,15 @@ function buildLayout(node: ConfigLayoutNode): OutputLayoutNode {
     if (node.split != null) out.split = node.split;
     return out;
   }
-  // Fallback: empty pane
   return { pane: { surfaces: [{ type: "terminal" }] } };
 }
 
-function projectLayout(project: ProjectDefinition): OutputLayoutNode | undefined {
-  // Full layout takes precedence
+function projectLayout(
+  project: ProjectDefinition
+): OutputLayoutNode | undefined {
   if (project.layout) {
     return buildLayout(project.layout);
   }
-  // Shorthand: tabs → single pane
   if (project.tabs && project.tabs.length > 0) {
     return {
       pane: {
@@ -85,10 +84,6 @@ function projectLayout(project: ProjectDefinition): OutputLayoutNode | undefined
     };
   }
   return undefined;
-}
-
-function progress(msg: string) {
-  console.log(`progress: ${msg}`);
 }
 
 function slugify(s: string): string {
@@ -126,7 +121,7 @@ function resolveBranch(
   if (branchFrom === "pr_url") {
     const prUrl = inputs.pr_url;
     if (!prUrl) throw new Error("PR URL is required");
-    progress("Fetching branch from PR...");
+    console.log("Fetching branch from PR...");
     const branch = branchFromPrUrl(prUrl);
     return { branch, session: branch };
   }
@@ -154,9 +149,9 @@ function createWorktree(
   );
 
   if (existsSync(worktreePath)) {
-    progress(`Worktree already exists at ${worktreePath}`);
+    console.log(`Worktree already exists at ${worktreePath}`);
   } else {
-    progress(`Creating worktree "${branch}"...`);
+    console.log(`Creating worktree "${branch}"...`);
 
     let branchExists = false;
     try {
@@ -180,24 +175,26 @@ function createWorktree(
     if (branchExists) {
       execSync(
         `git -C ${shellEscape(repoPath)} worktree add ${shellEscape(worktreePath)} ${shellEscape(branch)}`,
-        { stdio: "pipe" }
+        { stdio: "inherit" }
       );
     } else {
       execSync(
         `git -C ${shellEscape(repoPath)} worktree add -b ${shellEscape(branch)} ${shellEscape(worktreePath)}`,
-        { stdio: "pipe" }
+        { stdio: "inherit" }
       );
     }
   }
 
   // Run base setup
   if (project.setup) {
-    runSetup("base", project.setup, worktreePath);
+    console.log(`\n▶ Running base setup...`);
+    execSync(project.setup, { cwd: worktreePath, stdio: "inherit" });
   }
 
   // Run workflow setup
   if (workflow?.setup) {
-    runSetup("workflow", workflow.setup, worktreePath);
+    console.log(`\n▶ Running workflow setup...`);
+    execSync(workflow.setup, { cwd: worktreePath, stdio: "inherit" });
   }
 
   const title = `${session} · ${project.name}`;
@@ -229,27 +226,6 @@ function createWorktree(
   return result;
 }
 
-function runSetup(label: string, command: string, cwd: string) {
-  progress(`Running ${label} setup...`);
-  const result = Bun.spawnSync(["bash", "-c", command], {
-    cwd,
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const stdout = result.stdout.toString().trim();
-  if (stdout) {
-    for (const line of stdout.split("\n")) {
-      if (line.trim()) progress(line.trim());
-    }
-  }
-  if (result.exitCode !== 0) {
-    const stderr = result.stderr.toString().trim();
-    throw new Error(
-      `${label} setup failed: ${stderr || `exit code ${result.exitCode}`}`
-    );
-  }
-}
-
 function createSimple(project: ProjectDefinition): WorkspaceDefinition {
   const result: WorkspaceDefinition = {
     title: project.name,
@@ -271,7 +247,7 @@ function createSimple(project: ProjectDefinition): WorkspaceDefinition {
 export function create(
   itemId: string,
   inputs: Record<string, string>
-): WorkspaceDefinition {
+): void {
   const [projectId, workflowSlug] = itemId.split("::");
   const config = loadConfig();
   const project = config.projects.find((p) => p.id === projectId);
@@ -280,15 +256,28 @@ export function create(
     throw new Error(`Project not found: ${projectId}`);
   }
 
-  if (!project.worktree) {
-    return createSimple(project);
+  let result: WorkspaceDefinition;
+
+  if (project.worktree) {
+    let workflow: WorkflowDefinition | undefined;
+    if (workflowSlug && project.workflows) {
+      workflow = project.workflows.find(
+        (w) => slugify(w.name) === workflowSlug
+      );
+    }
+    const { branch, session } = resolveBranch(workflow, inputs);
+    result = createWorktree(project, workflow, branch, session, inputs);
+  } else {
+    result = createSimple(project);
   }
 
-  let workflow: WorkflowDefinition | undefined;
-  if (workflowSlug && project.workflows) {
-    workflow = project.workflows.find((w) => slugify(w.name) === workflowSlug);
+  // Write result to CMUX_PROVIDER_OUTPUT if set, otherwise stdout
+  const outputPath = process.env.CMUX_PROVIDER_OUTPUT;
+  if (outputPath) {
+    writeFileSync(outputPath, JSON.stringify(result));
+    console.log(`\n✅ Setup complete`);
+  } else {
+    // Fallback for testing: output to stdout
+    console.log(JSON.stringify(result));
   }
-
-  const { branch, session } = resolveBranch(workflow, inputs);
-  return createWorktree(project, workflow, branch, session, inputs);
 }

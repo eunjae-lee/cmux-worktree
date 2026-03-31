@@ -43,11 +43,10 @@ try {
     }
     case "create": {
       if (!id) {
-        console.error('{"error":"--id is required"}');
+        console.error("--id is required");
         process.exit(1);
       }
-      const result = create(id, inputs);
-      console.log(JSON.stringify(result));
+      create(id, inputs);
       break;
     }
     case "destroy": {
@@ -66,6 +65,6 @@ try {
       process.exit(1);
   }
 } catch (err: any) {
-  console.log(JSON.stringify({ error: err.message }));
+  console.error(`\n❌ ${err.message}`);
   process.exit(1);
 }
