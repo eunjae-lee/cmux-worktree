@@ -1,7 +1,8 @@
 import {
   loadConfig,
   type ProjectDefinition,
-  type TabDefinition,
+  type SurfaceDefinition,
+  type LayoutNode as ConfigLayoutNode,
   type WorkflowDefinition,
 } from "./config";
 import { execSync } from "child_process";
@@ -9,18 +10,24 @@ import { existsSync } from "fs";
 import { resolve } from "path";
 import { homedir } from "os";
 
-interface Surface {
+// Output types matching cmux's JSON schema exactly
+
+interface OutputSurface {
   type: "terminal" | "browser";
-  name: string;
+  name?: string;
   command?: string;
   url?: string;
+  cwd?: string;
+  env?: Record<string, string>;
+  focus?: boolean;
   suspended?: boolean;
 }
 
-interface LayoutNode {
+interface OutputLayoutNode {
+  pane?: { surfaces: OutputSurface[] };
   direction?: "horizontal" | "vertical";
-  children?: LayoutNode[];
-  pane?: { surfaces: Surface[] };
+  split?: number;
+  children?: OutputLayoutNode[];
 }
 
 interface WorkspaceDefinition {
@@ -28,23 +35,56 @@ interface WorkspaceDefinition {
   cwd: string;
   color?: string;
   env?: Record<string, string>;
-  layout?: LayoutNode;
+  layout?: OutputLayoutNode;
 }
 
-function buildSurface(tab: TabDefinition): Surface {
-  if (tab.type === "browser") {
+function buildSurface(surface: SurfaceDefinition): OutputSurface {
+  const type = surface.type || "terminal";
+  const out: OutputSurface = { type };
+  if (surface.name) out.name = surface.name;
+  if (surface.command) out.command = surface.command;
+  if (surface.url) out.url = surface.url;
+  if (surface.cwd) out.cwd = surface.cwd;
+  if (surface.env) out.env = surface.env;
+  if (surface.focus) out.focus = true;
+  if (surface.suspended) out.suspended = true;
+  return out;
+}
+
+function buildLayout(node: ConfigLayoutNode): OutputLayoutNode {
+  if (node.pane) {
     return {
-      type: "browser",
-      name: tab.name,
-      url: tab.url || "about:blank",
+      pane: {
+        surfaces: node.pane.surfaces.map(buildSurface),
+      },
     };
   }
-  return {
-    type: "terminal",
-    name: tab.name,
-    ...(tab.command ? { command: tab.command } : {}),
-    ...(tab.suspended ? { suspended: true } : {}),
-  };
+  if (node.direction && node.children) {
+    const out: OutputLayoutNode = {
+      direction: node.direction,
+      children: node.children.map(buildLayout),
+    };
+    if (node.split != null) out.split = node.split;
+    return out;
+  }
+  // Fallback: empty pane
+  return { pane: { surfaces: [{ type: "terminal" }] } };
+}
+
+function projectLayout(project: ProjectDefinition): OutputLayoutNode | undefined {
+  // Full layout takes precedence
+  if (project.layout) {
+    return buildLayout(project.layout);
+  }
+  // Shorthand: tabs → single pane
+  if (project.tabs && project.tabs.length > 0) {
+    return {
+      pane: {
+        surfaces: project.tabs.map(buildSurface),
+      },
+    };
+  }
+  return undefined;
 }
 
 function progress(msg: string) {
@@ -63,7 +103,6 @@ function shellEscape(s: string): string {
   return "'" + s.replace(/'/g, "'\\''") + "'";
 }
 
-/** Extract branch name from a GitHub PR URL using `gh` CLI */
 function branchFromPrUrl(prUrl: string): string {
   try {
     const result = execSync(
@@ -87,12 +126,11 @@ function resolveBranch(
   if (branchFrom === "pr_url") {
     const prUrl = inputs.pr_url;
     if (!prUrl) throw new Error("PR URL is required");
-    progress(`Fetching branch from PR...`);
+    progress("Fetching branch from PR...");
     const branch = branchFromPrUrl(prUrl);
     return { branch, session: branch };
   }
 
-  // Default: session-based
   const session = inputs.session;
   if (!session) throw new Error("Session name is required");
   const branch = inputs.branch?.trim() || slugify(session);
@@ -120,7 +158,6 @@ function createWorktree(
   } else {
     progress(`Creating worktree "${branch}"...`);
 
-    // Check if branch exists
     let branchExists = false;
     try {
       execSync(
@@ -184,12 +221,9 @@ function createWorktree(
     result.color = project.color;
   }
 
-  if (project.tabs && project.tabs.length > 0) {
-    result.layout = {
-      pane: {
-        surfaces: project.tabs.map(buildSurface),
-      },
-    };
+  const layout = projectLayout(project);
+  if (layout) {
+    result.layout = layout;
   }
 
   return result;
@@ -226,12 +260,9 @@ function createSimple(project: ProjectDefinition): WorkspaceDefinition {
     result.color = project.color;
   }
 
-  if (project.tabs && project.tabs.length > 0) {
-    result.layout = {
-      pane: {
-        surfaces: project.tabs.map(buildSurface),
-      },
-    };
+  const layout = projectLayout(project);
+  if (layout) {
+    result.layout = layout;
   }
 
   return result;
@@ -241,7 +272,6 @@ export function create(
   itemId: string,
   inputs: Record<string, string>
 ): WorkspaceDefinition {
-  // itemId is either "projectId" or "projectId::workflowSlug"
   const [projectId, workflowSlug] = itemId.split("::");
   const config = loadConfig();
   const project = config.projects.find((p) => p.id === projectId);
@@ -254,12 +284,9 @@ export function create(
     return createSimple(project);
   }
 
-  // Find the workflow
   let workflow: WorkflowDefinition | undefined;
   if (workflowSlug && project.workflows) {
-    workflow = project.workflows.find(
-      (w) => slugify(w.name) === workflowSlug
-    );
+    workflow = project.workflows.find((w) => slugify(w.name) === workflowSlug);
   }
 
   const { branch, session } = resolveBranch(workflow, inputs);

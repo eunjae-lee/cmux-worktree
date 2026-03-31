@@ -3,12 +3,24 @@ import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 import { homedir } from "os";
 
-export interface TabDefinition {
-  name: string;
+export interface SurfaceDefinition {
+  type?: "terminal" | "browser"; // default: "terminal"
+  name?: string;
   command?: string;
-  type?: "terminal" | "browser";
   url?: string;
+  cwd?: string;
+  env?: Record<string, string>;
+  focus?: boolean;
   suspended?: boolean;
+}
+
+export interface LayoutNode {
+  // Pane node: has surfaces
+  pane?: { surfaces: SurfaceDefinition[] };
+  // Split node: has direction + children
+  direction?: "horizontal" | "vertical";
+  split?: number; // 0.0-1.0, default 0.5
+  children?: LayoutNode[];
 }
 
 export interface WorkflowInput {
@@ -33,7 +45,10 @@ export interface ProjectDefinition {
   worktree?: boolean;
   setup?: string; // base setup command, always runs for worktree projects
   workflows?: WorkflowDefinition[];
-  tabs?: TabDefinition[];
+  // Shorthand: flat list of surfaces as tabs in a single pane
+  tabs?: SurfaceDefinition[];
+  // Full layout: matches cmux's JSON layout schema
+  layout?: LayoutNode;
 }
 
 export interface Config {
