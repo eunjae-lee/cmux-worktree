@@ -101,7 +101,7 @@ function createWorktree(
     }
   }
 
-  const title = `${project.name} · ${session}`;
+  const title = `${session} · ${project.name}`;
   const result: WorkspaceDefinition = {
     title,
     cwd: worktreePath,
