@@ -2,6 +2,7 @@ import {
   loadConfig,
   type ProjectDefinition,
   type TabDefinition,
+  type WorkflowDefinition,
 } from "./config";
 import { execSync } from "child_process";
 import { existsSync } from "fs";
@@ -49,30 +50,83 @@ function progress(msg: string) {
   console.log(`progress: ${msg}`);
 }
 
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function shellEscape(s: string): string {
+  return "'" + s.replace(/'/g, "'\\''") + "'";
+}
+
+/** Extract branch name from a GitHub PR URL using `gh` CLI */
+function branchFromPrUrl(prUrl: string): string {
+  try {
+    const result = execSync(
+      `gh pr view ${shellEscape(prUrl)} --json headRefName --jq .headRefName`,
+      { stdio: "pipe" }
+    );
+    const branch = result.toString().trim();
+    if (!branch) throw new Error("Empty branch name from gh pr view");
+    return branch;
+  } catch (err: any) {
+    throw new Error(`Failed to get branch from PR URL: ${err.message}`);
+  }
+}
+
+function resolveBranch(
+  workflow: WorkflowDefinition | undefined,
+  inputs: Record<string, string>
+): { branch: string; session: string } {
+  const branchFrom = workflow?.branch_from || "session";
+
+  if (branchFrom === "pr_url") {
+    const prUrl = inputs.pr_url;
+    if (!prUrl) throw new Error("PR URL is required");
+    progress(`Fetching branch from PR...`);
+    const branch = branchFromPrUrl(prUrl);
+    return { branch, session: branch };
+  }
+
+  // Default: session-based
+  const session = inputs.session;
+  if (!session) throw new Error("Session name is required");
+  const branch = inputs.branch?.trim() || slugify(session);
+  return { branch, session };
+}
+
 function createWorktree(
   project: ProjectDefinition,
+  workflow: WorkflowDefinition | undefined,
   branch: string,
   session: string
 ): WorkspaceDefinition {
   const repoPath = project.path;
-  const worktreeBase = resolve(homedir(), ".cmux", "workspaces", project.id, branch);
-  const worktreePath = worktreeBase;
+  const worktreePath = resolve(
+    homedir(),
+    ".cmux",
+    "workspaces",
+    project.id,
+    branch
+  );
 
   if (existsSync(worktreePath)) {
-    // Worktree already exists — just open it
     progress(`Worktree already exists at ${worktreePath}`);
   } else {
     progress(`Creating worktree "${branch}"...`);
 
-    // Check if branch exists remotely or locally
+    // Check if branch exists
     let branchExists = false;
     try {
-      execSync(`git -C ${shellEscape(repoPath)} rev-parse --verify ${shellEscape(branch)} 2>/dev/null`, {
-        stdio: "pipe",
-      });
+      execSync(
+        `git -C ${shellEscape(repoPath)} rev-parse --verify ${shellEscape(branch)} 2>/dev/null`,
+        { stdio: "pipe" }
+      );
       branchExists = true;
     } catch {
-      // branch doesn't exist locally, check remote
       try {
         execSync(
           `git -C ${shellEscape(repoPath)} rev-parse --verify origin/${shellEscape(branch)} 2>/dev/null`,
@@ -80,7 +134,7 @@ function createWorktree(
         );
         branchExists = true;
       } catch {
-        // branch doesn't exist anywhere — will create new
+        // will create new branch
       }
     }
 
@@ -95,26 +149,16 @@ function createWorktree(
         { stdio: "pipe" }
       );
     }
+  }
 
-    // Run setup command if configured
-    if (project.setup) {
-      progress(`Running setup...`);
-      const result = Bun.spawnSync(["bash", "-c", project.setup], {
-        cwd: worktreePath,
-        stdout: "pipe",
-        stderr: "pipe",
-      });
-      const stdout = result.stdout.toString().trim();
-      if (stdout) {
-        for (const line of stdout.split("\n")) {
-          if (line.trim()) progress(line.trim());
-        }
-      }
-      if (result.exitCode !== 0) {
-        const stderr = result.stderr.toString().trim();
-        throw new Error(`Setup failed: ${stderr || `exit code ${result.exitCode}`}`);
-      }
-    }
+  // Run base setup
+  if (project.setup) {
+    runSetup("base", project.setup, worktreePath);
+  }
+
+  // Run workflow setup
+  if (workflow?.setup) {
+    runSetup("workflow", workflow.setup, worktreePath);
   }
 
   const title = `${session} · ${project.name}`;
@@ -138,6 +182,27 @@ function createWorktree(
   return result;
 }
 
+function runSetup(label: string, command: string, cwd: string) {
+  progress(`Running ${label} setup...`);
+  const result = Bun.spawnSync(["bash", "-c", command], {
+    cwd,
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const stdout = result.stdout.toString().trim();
+  if (stdout) {
+    for (const line of stdout.split("\n")) {
+      if (line.trim()) progress(line.trim());
+    }
+  }
+  if (result.exitCode !== 0) {
+    const stderr = result.stderr.toString().trim();
+    throw new Error(
+      `${label} setup failed: ${stderr || `exit code ${result.exitCode}`}`
+    );
+  }
+}
+
 function createSimple(project: ProjectDefinition): WorkspaceDefinition {
   const result: WorkspaceDefinition = {
     title: project.name,
@@ -159,22 +224,12 @@ function createSimple(project: ProjectDefinition): WorkspaceDefinition {
   return result;
 }
 
-function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
-function shellEscape(s: string): string {
-  return "'" + s.replace(/'/g, "'\\''") + "'";
-}
-
 export function create(
-  projectId: string,
+  itemId: string,
   inputs: Record<string, string>
 ): WorkspaceDefinition {
+  // itemId is either "projectId" or "projectId::workflowSlug"
+  const [projectId, workflowSlug] = itemId.split("::");
   const config = loadConfig();
   const project = config.projects.find((p) => p.id === projectId);
 
@@ -182,14 +237,18 @@ export function create(
     throw new Error(`Project not found: ${projectId}`);
   }
 
-  if (project.worktree) {
-    const session = inputs.session;
-    if (!session) {
-      throw new Error("Session name is required for worktree projects");
-    }
-    const branch = inputs.branch?.trim() || slugify(session);
-    return createWorktree(project, branch, session);
+  if (!project.worktree) {
+    return createSimple(project);
   }
 
-  return createSimple(project);
+  // Find the workflow
+  let workflow: WorkflowDefinition | undefined;
+  if (workflowSlug && project.workflows) {
+    workflow = project.workflows.find(
+      (w) => slugify(w.name) === workflowSlug
+    );
+  }
+
+  const { branch, session } = resolveBranch(workflow, inputs);
+  return createWorktree(project, workflow, branch, session);
 }

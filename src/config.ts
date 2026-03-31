@@ -11,13 +11,28 @@ export interface TabDefinition {
   suspended?: boolean;
 }
 
+export interface WorkflowInput {
+  id: string;
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+}
+
+export interface WorkflowDefinition {
+  name: string;
+  branch_from?: string; // "pr_url" or "session" (default: "session")
+  inputs?: WorkflowInput[];
+  setup?: string; // additional setup on top of project base setup
+}
+
 export interface ProjectDefinition {
   id: string;
   name: string;
   path: string;
   color?: string;
   worktree?: boolean;
-  setup?: string; // shell command to run after worktree creation (e.g. "bun install")
+  setup?: string; // base setup command, always runs for worktree projects
+  workflows?: WorkflowDefinition[];
   tabs?: TabDefinition[];
 }
 

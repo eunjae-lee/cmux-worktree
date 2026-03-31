@@ -5,10 +5,11 @@ import { resolve } from "path";
 import { homedir } from "os";
 
 export function destroy(
-  projectId: string,
+  itemId: string,
   inputs: Record<string, string>,
   cwd?: string
 ) {
+  const [projectId] = itemId.split("::");
   const config = loadConfig();
   const project = config.projects.find((p) => p.id === projectId);
 
