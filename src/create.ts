@@ -98,8 +98,22 @@ function createWorktree(
 
     // Run setup command if configured
     if (project.setup) {
-      progress(`Running setup: ${project.setup}`);
-      execSync(project.setup, { cwd: worktreePath, stdio: "pipe" });
+      progress(`Running setup...`);
+      const result = Bun.spawnSync(["bash", "-c", project.setup], {
+        cwd: worktreePath,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const stdout = result.stdout.toString().trim();
+      if (stdout) {
+        for (const line of stdout.split("\n")) {
+          if (line.trim()) progress(line.trim());
+        }
+      }
+      if (result.exitCode !== 0) {
+        const stderr = result.stderr.toString().trim();
+        throw new Error(`Setup failed: ${stderr || `exit code ${result.exitCode}`}`);
+      }
     }
   }
 
