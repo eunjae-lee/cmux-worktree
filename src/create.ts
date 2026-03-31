@@ -5,7 +5,8 @@ import {
 } from "./config";
 import { execSync } from "child_process";
 import { existsSync } from "fs";
-import { resolve, basename } from "path";
+import { resolve } from "path";
+import { homedir } from "os";
 
 interface Surface {
   type: "terminal" | "browser";
@@ -54,7 +55,8 @@ function createWorktree(
   session: string
 ): WorkspaceDefinition {
   const repoPath = project.path;
-  const worktreePath = resolve(repoPath, ".worktrees", branch);
+  const worktreeBase = resolve(homedir(), ".cmux", "workspaces", project.id, branch);
+  const worktreePath = worktreeBase;
 
   if (existsSync(worktreePath)) {
     // Worktree already exists — just open it
