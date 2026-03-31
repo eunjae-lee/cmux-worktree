@@ -103,7 +103,8 @@ function createWorktree(
   project: ProjectDefinition,
   workflow: WorkflowDefinition | undefined,
   branch: string,
-  session: string
+  session: string,
+  inputs: Record<string, string>
 ): WorkspaceDefinition {
   const repoPath = project.path;
   const worktreePath = resolve(
@@ -171,6 +172,11 @@ function createWorktree(
       CMUX_PROVIDER_WORKFLOW: workflow?.name ?? "default",
       CMUX_PROVIDER_SESSION: session,
       CMUX_PROVIDER_BRANCH: branch,
+      ...Object.fromEntries(
+        Object.entries(inputs)
+          .filter(([k]) => k !== "session" && k !== "branch")
+          .map(([k, v]) => [`CMUX_PROVIDER_INPUT_${k.toUpperCase()}`, v])
+      ),
     },
   };
 
@@ -257,5 +263,5 @@ export function create(
   }
 
   const { branch, session } = resolveBranch(workflow, inputs);
-  return createWorktree(project, workflow, branch, session);
+  return createWorktree(project, workflow, branch, session, inputs);
 }
