@@ -19,11 +19,14 @@ Then add the provider to `~/.config/cmux/cmux.json`:
       "name": "Projects",
       "list": "cmux-worktree list",
       "create": "cmux-worktree create",
-      "destroy": "cmux-worktree destroy"
+      "destroy": "cmux-worktree destroy",
+      "isolate_browser": true
     }
   ]
 }
 ```
+
+> **`isolate_browser`**: when true, each workspace gets its own browser storage (cookies, localStorage). Useful for testing with different accounts per worktree.
 
 Click the "+" button in cmux's titlebar to see your projects.
 
