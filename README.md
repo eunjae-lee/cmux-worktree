@@ -1,19 +1,15 @@
 # cmux-worktree
 
-A workspace provider for [cmux](https://github.com/manaflow-ai/cmux) that creates workspaces from a YAML project config — with git worktree support, workflows, split panes, and suspended tabs.
+A workspace provider for [cmux](https://github.com/eunjae-lee/cmux) that creates workspaces from a YAML project config — with git worktree support, workflows, split panes, and suspended tabs.
 
-## Setup
-
-1. Install dependencies:
+## Install
 
 ```bash
-cd ~/workspace/cmux-worktree
-bun install
+brew tap eunjae-lee/cmux
+brew install cmux-worktree
 ```
 
-2. Create a config file at `~/.config/cmux-worktree/projects.yml` (see examples below).
-
-3. Add the provider to `~/.config/cmux/cmux.json`:
+Then add the provider to `~/.config/cmux/cmux.json`:
 
 ```json
 {
@@ -21,21 +17,21 @@ bun install
     {
       "id": "cmux-worktree",
       "name": "Projects",
-      "list": "/path/to/bun run /path/to/cmux-worktree/src/cli.ts list",
-      "create": "/path/to/bun run /path/to/cmux-worktree/src/cli.ts create",
-      "destroy": "/path/to/bun run /path/to/cmux-worktree/src/cli.ts destroy"
+      "list": "cmux-worktree list",
+      "create": "cmux-worktree create",
+      "destroy": "cmux-worktree destroy"
     }
   ]
 }
 ```
 
-> **Note:** Use the full path to `bun` (e.g. from `which bun`) since the app may not have your shell's PATH.
+Click the "+" button in cmux's titlebar to see your projects.
 
-4. Click the "+" button in cmux's titlebar to see your projects.
+## Project Config
 
-## Config Reference
+Create `~/.config/cmux-worktree/projects.yml`:
 
-### Simple project (no worktree)
+### Simple project
 
 Opens a workspace at the project directory with configured tabs.
 
@@ -104,13 +100,13 @@ projects:
 ```
 
 This shows three items in the "+" menu:
-- **My App — Blank** → prompts for session name → creates worktree → runs base setup
-- **My App — From PR** → prompts for PR URL → extracts branch via `gh` CLI → creates worktree → runs base setup + workflow setup
-- **My App — Dev Session** → prompts for session name → creates worktree → runs base setup + workflow setup
+- **My App — Blank** → session name → worktree → base setup
+- **My App — From PR** → PR URL → extracts branch via `gh` CLI → worktree → base + workflow setup
+- **My App — Dev Session** → session name → worktree → base + workflow setup
 
 ### Split pane layout
 
-Matches cmux's JSON layout schema. Use `layout` instead of `tabs` for split panes.
+Use `layout` instead of `tabs` for split panes. Matches cmux's JSON layout schema.
 
 ```yaml
 projects:
@@ -136,7 +132,7 @@ projects:
                 suspended: true
 ```
 
-## Full config schema
+## Config Reference
 
 ### Project
 
@@ -159,7 +155,7 @@ projects:
 | `name` | string | Workflow name (shown in "+" menu) |
 | `branch_from` | string? | `"session"` (default) or `"pr_url"` |
 | `inputs` | array? | Additional input fields |
-| `setup` | string? | Extra setup command (runs after base setup) |
+| `setup` | string? | Extra setup (runs after base setup) |
 
 ### Surface
 
@@ -172,7 +168,7 @@ projects:
 | `cwd` | string? | Working directory override |
 | `env` | object? | Per-surface environment variables |
 | `focus` | bool? | Focus this surface on creation |
-| `suspended` | bool? | Show "Press Enter to run" prompt instead of auto-executing |
+| `suspended` | bool? | "Press Enter to run" prompt instead of auto-executing |
 
 ### Layout node
 
@@ -183,9 +179,9 @@ projects:
 | `split` | number? | Split position 0.0–1.0 (default 0.5) |
 | `children` | array? | Exactly 2 child layout nodes |
 
-## Environment variables
+## Environment Variables
 
-Provider workspaces set these env vars on all terminals:
+Provider workspaces set these on all terminals:
 
 | Variable | Description |
 |----------|-------------|
@@ -195,22 +191,28 @@ Provider workspaces set these env vars on all terminals:
 | `CMUX_PROVIDER_BRANCH` | Branch name |
 | `CMUX_PROVIDER_INPUT_*` | Custom workflow inputs (e.g. `CMUX_PROVIDER_INPUT_PR_URL`) |
 
-## Workspace lifecycle
+## Workspace Lifecycle
 
-- **Create**: "+" menu → select project/workflow → enter inputs → setup runs in live terminal → layout applied on success
-- **Stop**: Right-click → "Stop" suspends the workspace (tears down terminals, dims in sidebar). Click to re-activate.
-- **Delete**: Right-click → "Delete" calls the destroy command (removes git worktree) and closes the workspace.
-- **Session restore**: Provider workspaces restore as suspended (dimmed). Click to activate.
+| Action | What happens |
+|--------|-------------|
+| **Create** | "+" menu → select project/workflow → enter inputs → setup runs in terminal → layout applied |
+| **Stop** | Right-click → "Stop" suspends (tears down terminals, dims in sidebar). Click to re-activate. |
+| **Delete** | Right-click → "Delete" removes git worktree and closes workspace. |
+| **App restart** | Provider workspaces restore as suspended. Click to activate. |
 
-## CLI
+## Development
 
 ```bash
-# List projects
+# Install dependencies
+bun install
+
+# Run directly
 bun run src/cli.ts list
+bun run src/cli.ts create --id my-app::blank --input session=test
 
-# Create workspace (writes JSON to $CMUX_PROVIDER_OUTPUT)
-CMUX_PROVIDER_OUTPUT=/tmp/out.json bun run src/cli.ts create --id my-app::blank --input session=feature-x
+# Compile to binary
+bun build src/cli.ts --compile --outfile cmux-worktree
 
-# Destroy workspace (removes worktree)
-bun run src/cli.ts destroy --id my-app::blank --cwd /path/to/worktree
+# Install locally
+./scripts/install.sh
 ```
