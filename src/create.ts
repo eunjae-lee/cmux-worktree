@@ -22,6 +22,7 @@ interface OutputSurface {
   focus?: boolean;
   suspended?: boolean;
   wait_for?: string;
+  log_to?: string;
 }
 
 interface OutputLayoutNode {
@@ -50,6 +51,7 @@ function buildSurface(surface: SurfaceDefinition): OutputSurface {
   if (surface.focus) out.focus = true;
   if (surface.suspended) out.suspended = true;
   if (surface.wait_for) out.wait_for = surface.wait_for;
+  if (surface.log_to) out.log_to = surface.log_to;
   return out;
 }
 

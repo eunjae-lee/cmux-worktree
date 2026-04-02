@@ -13,6 +13,7 @@ export interface SurfaceDefinition {
   focus?: boolean;
   suspended?: boolean;
   wait_for?: string; // shell command that must exit 0 before browser loads URL
+  log_to?: string; // file path to log terminal output in real time
 }
 
 export interface LayoutNode {
