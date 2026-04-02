@@ -158,6 +158,29 @@ layout:
 
 The browser opens blank and polls the `wait_for` command with exponential backoff (1s → 10s cap). Once the command exits 0, the URL loads.
 
+### Dev server with log-based browser readiness
+
+Capture dev server output to a log file, then wait for a specific line before loading the browser:
+
+```yaml
+layout:
+  direction: horizontal
+  children:
+    - pane:
+        surfaces:
+          - name: Dev
+            command: bun run dev
+            log_to: /tmp/dev-server.log
+    - pane:
+        surfaces:
+          - name: Preview
+            type: browser
+            url: http://localhost:3000
+            wait_for: grep -q "ready" /tmp/dev-server.log 2>/dev/null
+```
+
+The dev server output streams to `/tmp/dev-server.log` in real time. The browser waits until "ready" appears in the log, then loads the URL.
+
 ## Config Reference
 
 ### Project
@@ -196,6 +219,7 @@ The browser opens blank and polls the `wait_for` command with exponential backof
 | `focus` | bool? | Focus this surface on creation |
 | `suspended` | bool? | "Press Enter to run" prompt instead of auto-executing |
 | `wait_for` | string? | Shell command that must exit 0 before browser loads URL (exponential backoff 1s → 10s) |
+| `log_to` | string? | File path to log terminal output in real time via `script(1)` |
 
 ### Layout node
 
