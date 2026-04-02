@@ -12,6 +12,7 @@ export interface SurfaceDefinition {
   env?: Record<string, string>;
   focus?: boolean;
   suspended?: boolean;
+  wait_for?: string; // shell command that must exit 0 before browser loads URL
 }
 
 export interface LayoutNode {

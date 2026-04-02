@@ -21,6 +21,7 @@ interface OutputSurface {
   env?: Record<string, string>;
   focus?: boolean;
   suspended?: boolean;
+  wait_for?: string;
 }
 
 interface OutputLayoutNode {
@@ -48,6 +49,7 @@ function buildSurface(surface: SurfaceDefinition): OutputSurface {
   if (surface.env) out.env = surface.env;
   if (surface.focus) out.focus = true;
   if (surface.suspended) out.suspended = true;
+  if (surface.wait_for) out.wait_for = surface.wait_for;
   return out;
 }
 
