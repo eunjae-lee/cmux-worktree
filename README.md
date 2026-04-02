@@ -135,6 +135,29 @@ projects:
                 suspended: true
 ```
 
+### Browser with readiness check
+
+Wait for a dev server to be ready before loading the preview:
+
+```yaml
+layout:
+  direction: horizontal
+  children:
+    - pane:
+        surfaces:
+          - name: Dev
+            command: bun run dev
+            suspended: true
+    - pane:
+        surfaces:
+          - name: Preview
+            type: browser
+            url: http://localhost:3000
+            wait_for: curl -sf http://localhost:3000 > /dev/null
+```
+
+The browser opens blank and polls the `wait_for` command with exponential backoff (1s → 10s cap). Once the command exits 0, the URL loads.
+
 ## Config Reference
 
 ### Project
@@ -172,6 +195,7 @@ projects:
 | `env` | object? | Per-surface environment variables |
 | `focus` | bool? | Focus this surface on creation |
 | `suspended` | bool? | "Press Enter to run" prompt instead of auto-executing |
+| `wait_for` | string? | Shell command that must exit 0 before browser loads URL (exponential backoff 1s → 10s) |
 
 ### Layout node
 
