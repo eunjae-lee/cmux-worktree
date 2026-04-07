@@ -13,20 +13,23 @@ Then add the provider to `~/.config/cmux/cmux.json`:
 
 ```json
 {
+  "commands": [],
   "workspace_providers": [
     {
       "id": "cmux-worktree",
       "name": "Projects",
-      "list": "cmux-worktree list",
-      "create": "cmux-worktree create",
-      "destroy": "cmux-worktree destroy",
+      "list": "/opt/homebrew/bin/cmux-worktree list",
+      "create": "/opt/homebrew/bin/cmux-worktree create",
+      "destroy": "/opt/homebrew/bin/cmux-worktree destroy",
       "isolate_browser": true
     }
   ]
 }
 ```
 
-> **`isolate_browser`**: when true, each workspace gets its own browser storage (cookies, localStorage). Useful for testing with different accounts per worktree.
+> **Note:** `"commands": []` is required — cmux's config parser expects this field.
+>
+> **Note:** Use full paths to `cmux-worktree` (e.g. `/opt/homebrew/bin/cmux-worktree`) since the app may not have your shell's PATH.
 
 Click the "+" button in cmux's titlebar to see your projects.
 
