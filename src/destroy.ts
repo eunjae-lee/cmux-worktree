@@ -31,7 +31,7 @@ export function destroy(
   }
 
   const worktreePath =
-    cwd || resolve(homedir(), ".cmux", "workspaces", project.id, branch);
+    cwd || resolve(homedir(), ".cmux", "workspaces", project.id, branch.replace(/\//g, "-"));
 
   if (!existsSync(worktreePath)) {
     console.error(`Worktree path does not exist: ${worktreePath}`);

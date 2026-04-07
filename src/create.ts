@@ -144,12 +144,14 @@ function createWorktree(
   inputs: Record<string, string>
 ): WorkspaceDefinition {
   const repoPath = project.path;
+  // Sanitize branch name for filesystem path (e.g. "hello/world" → "hello-world")
+  const safeBranch = branch.replace(/\//g, "-");
   const worktreePath = resolve(
     homedir(),
     ".cmux",
     "workspaces",
     project.id,
-    branch
+    safeBranch
   );
 
   if (existsSync(worktreePath)) {
