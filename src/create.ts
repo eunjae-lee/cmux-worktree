@@ -189,33 +189,37 @@ function createWorktree(
     }
   }
 
+  // Build provider env vars early so setup scripts can use them
+  const providerEnv: Record<string, string> = {
+    CMUX_PROVIDER_PROJECT: project.id,
+    CMUX_PROVIDER_WORKFLOW: workflow?.name ?? "default",
+    CMUX_PROVIDER_SESSION: session,
+    CMUX_PROVIDER_BRANCH: branch,
+    ...Object.fromEntries(
+      Object.entries(inputs)
+        .filter(([k]) => k !== "session" && k !== "branch")
+        .map(([k, v]) => [`CMUX_PROVIDER_INPUT_${k.toUpperCase()}`, v])
+    ),
+  };
+  const setupEnv = { ...process.env, ...providerEnv };
+
   // Run base setup
   if (project.setup) {
     console.log(`\n▶ Running base setup...`);
-    execSync(project.setup, { cwd: worktreePath, stdio: "inherit" });
+    execSync(project.setup, { cwd: worktreePath, stdio: "inherit", env: setupEnv });
   }
 
   // Run workflow setup
   if (workflow?.setup) {
     console.log(`\n▶ Running workflow setup...`);
-    execSync(workflow.setup, { cwd: worktreePath, stdio: "inherit" });
+    execSync(workflow.setup, { cwd: worktreePath, stdio: "inherit", env: setupEnv });
   }
 
   const title = `${session} · ${project.name}`;
   const result: WorkspaceDefinition = {
     title,
     cwd: worktreePath,
-    env: {
-      CMUX_PROVIDER_PROJECT: project.id,
-      CMUX_PROVIDER_WORKFLOW: workflow?.name ?? "default",
-      CMUX_PROVIDER_SESSION: session,
-      CMUX_PROVIDER_BRANCH: branch,
-      ...Object.fromEntries(
-        Object.entries(inputs)
-          .filter(([k]) => k !== "session" && k !== "branch")
-          .map(([k, v]) => [`CMUX_PROVIDER_INPUT_${k.toUpperCase()}`, v])
-      ),
-    },
+    env: providerEnv,
   };
 
   if (project.color) {
