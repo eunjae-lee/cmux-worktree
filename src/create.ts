@@ -192,11 +192,14 @@ function createWorktree(
   }
 
   // Build provider env vars early so setup scripts can use them
+  // CMUX_PROVIDER_SLUG is always filesystem/DB safe (no slashes, lowercase, alphanumeric + hyphens)
+  const slug = branch.replace(/\//g, "-").replace(/[^a-zA-Z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
   const providerEnv: Record<string, string> = {
     CMUX_PROVIDER_PROJECT: project.id,
     CMUX_PROVIDER_WORKFLOW: workflow?.name ?? "default",
     CMUX_PROVIDER_SESSION: session,
     CMUX_PROVIDER_BRANCH: branch,
+    CMUX_PROVIDER_SLUG: slug,
     ...Object.fromEntries(
       Object.entries(inputs)
         .filter(([k]) => k !== "session" && k !== "branch")
