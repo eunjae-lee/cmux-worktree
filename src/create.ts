@@ -208,16 +208,20 @@ function createWorktree(
   };
   const setupEnv = { ...process.env, ...providerEnv };
 
+  // Run setup through a login shell so it inherits the user's full environment
+  // (.zshrc, nvm, rbenv, etc.)
+  const shell = process.env.SHELL || "/bin/zsh";
+
   // Run base setup
   if (project.setup) {
     console.log(`\n▶ Running base setup...`);
-    execSync(project.setup, { cwd: worktreePath, stdio: "inherit", env: setupEnv });
+    execSync(`${shell} -l -c ${shellEscape(project.setup)}`, { cwd: worktreePath, stdio: "inherit", env: setupEnv });
   }
 
   // Run workflow setup
   if (workflow?.setup) {
     console.log(`\n▶ Running workflow setup...`);
-    execSync(workflow.setup, { cwd: worktreePath, stdio: "inherit", env: setupEnv });
+    execSync(`${shell} -l -c ${shellEscape(workflow.setup)}`, { cwd: worktreePath, stdio: "inherit", env: setupEnv });
   }
 
   const title = `${session} · ${project.name}`;
