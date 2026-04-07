@@ -46,6 +46,7 @@ export interface ProjectDefinition {
   color?: string;
   worktree?: boolean;
   setup?: string; // base setup command, always runs for worktree projects
+  cleanup?: string; // cleanup command run on destroy (e.g. drop database)
   workflows?: WorkflowDefinition[];
   // Shorthand: flat list of surfaces as tabs in a single pane
   tabs?: SurfaceDefinition[];

@@ -19,14 +19,14 @@ export function destroy(
   }
 
   if (!project.worktree) {
-    // Non-worktree projects have nothing to clean up
     return;
   }
 
-  // Determine worktree path from cwd or reconstruct from inputs
   const branch = inputs.branch || inputs.session;
   if (!branch && !cwd) {
-    console.error("Cannot determine worktree path: no branch/session input and no cwd");
+    console.error(
+      "Cannot determine worktree path: no branch/session input and no cwd"
+    );
     return;
   }
 
@@ -38,6 +38,27 @@ export function destroy(
     return;
   }
 
+  // Run project cleanup command if configured (e.g. drop database)
+  if (project.cleanup) {
+    try {
+      console.log(`Running cleanup...`);
+      execSync(project.cleanup, {
+        cwd: worktreePath,
+        stdio: "inherit",
+        env: {
+          ...process.env,
+          CMUX_PROVIDER_PROJECT: project.id,
+          CMUX_PROVIDER_BRANCH: branch || "",
+          CMUX_PROVIDER_SESSION: inputs.session || "",
+        },
+      });
+    } catch (err: any) {
+      console.error(`Cleanup failed: ${err.message}`);
+      // Continue with worktree removal even if cleanup fails
+    }
+  }
+
+  // Remove the worktree
   try {
     execSync(
       `git -C ${shellEscape(project.path)} worktree remove ${shellEscape(worktreePath)} --force`,
